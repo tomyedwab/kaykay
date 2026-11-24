@@ -12,6 +12,9 @@ commands, options, and ticket file format are the same as `tk`.
   working directory or its parents for a `.tickets/` folder.
 - **Ticket ID prefixes are set by `KK_PREFIX`**, not derived from the working
   directory name. IDs are `<prefix>-<4 random chars>`, e.g. `kk-5c46`.
+- **New tickets are written as `<id>.kk`.** Existing `<id>.md` files in the
+  tickets directory are still read and updated in place, so a `tk` directory
+  works as-is. If both exist for one ID, the `.kk` file is used.
 - `ls`/`list`, `edit`, and `query` are built in rather than shipped as plugins.
   `migrate-beads` is not included.
 - Plugins are executables named `kk-<cmd>`. They receive `KK_TICKETS_DIR` and
@@ -80,6 +83,8 @@ Commands:
 Partial IDs work anywhere an ID is expected: `kk show 5c4` matches `mp-5c46`.
 
 ## Ticket format
+
+Each ticket is a file named `<id>.kk` (legacy `<id>.md` files are also read):
 
 ```markdown
 ---

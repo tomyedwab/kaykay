@@ -79,16 +79,42 @@ pub fn parse_ticket(text: &str) -> Ticket {
     t
 }
 
-/// Paths of all ticket files, sorted by name.
+/// Extension given to newly created ticket files.
+pub const EXTENSION: &str = "kk";
+/// Extensions read as tickets, in order of preference.
+const READ_EXTENSIONS: [&str; 2] = [EXTENSION, "md"];
+
+/// Path for a new ticket with the given ID.
+pub fn new_ticket_path(dir: &Path, id: &str) -> PathBuf {
+    dir.join(format!("{id}.{EXTENSION}"))
+}
+
+/// The existing ticket file named exactly `id`, whatever its extension.
+pub fn exact_path(dir: &Path, id: &str) -> Option<PathBuf> {
+    READ_EXTENSIONS
+        .iter()
+        .map(|ext| dir.join(format!("{id}.{ext}")))
+        .find(|p| p.is_file())
+}
+
+/// Paths of all ticket files (`.kk`, plus legacy `.md`), sorted by ID.
+/// If an ID exists with both extensions, only the `.kk` file is used.
 fn ticket_files(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = fs::read_dir(dir)
         .into_iter()
         .flatten()
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|e| e == "md") && p.is_file())
+        .filter(|p| {
+            p.extension()
+                .is_some_and(|e| READ_EXTENSIONS.iter().any(|r| e == *r))
+                && p.is_file()
+        })
         .collect();
-    files.sort();
+    // READ_EXTENSIONS happens to be in alphabetical order, so sorting puts
+    // the preferred file first among those sharing an ID.
+    files.sort_by_key(|p| (file_id(p), p.extension().map(|e| e.to_os_string())));
+    files.dedup_by_key(|p| file_id(p));
     files
 }
 
@@ -105,7 +131,7 @@ pub fn load_all(dir: &Path) -> Vec<Ticket> {
         .collect()
 }
 
-/// The ticket ID implied by a file path (file name without `.md`).
+/// The ticket ID implied by a file path (file name without its extension).
 pub fn file_id(path: &Path) -> String {
     path.file_stem()
         .map(|s| s.to_string_lossy().into_owned())
@@ -115,8 +141,7 @@ pub fn file_id(path: &Path) -> String {
 /// Resolve a full or partial ticket ID to its file.
 pub fn resolve(dir: &Path, id: &str) -> Result<PathBuf, String> {
     let id = id.trim();
-    let exact = dir.join(format!("{id}.md"));
-    if exact.is_file() {
+    if let Some(exact) = exact_path(dir, id) {
         return Ok(exact);
     }
     let mut matches = ticket_files(dir)

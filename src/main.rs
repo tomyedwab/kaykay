@@ -1,7 +1,7 @@
 //! kk (KayKay) - minimal ticket system with dependency tracking.
 //!
-//! Tickets are markdown files with YAML frontmatter, stored in the directory
-//! named by `KK_TICKETS_DIR`. New ticket IDs are prefixed with `KK_PREFIX`.
+//! Tickets are markdown files with YAML frontmatter (`<id>.kk`, or legacy
+//! `<id>.md`), stored in the directory named by `KK_TICKETS_DIR`. New ticket IDs are prefixed with `KK_PREFIX`.
 
 mod cmd;
 mod deps;
@@ -75,7 +75,7 @@ Environment:
   {prefix:<22} Prefix for new ticket IDs (required by 'create')
   KK_PAGER               Pager for 'show' on a terminal (falls back to PAGER)
 
-Tickets are stored as markdown files in ${dir}
+Tickets are stored as markdown files (<id>.kk) in ${dir}; existing .md files are read too
 Supports partial ID matching (e.g., 'kk show 5c4' matches 'nw-5c46')
 ",
         dir = store::DIR_ENV,

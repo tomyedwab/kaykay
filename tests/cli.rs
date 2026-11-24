@@ -102,7 +102,7 @@ impl Env {
     }
 
     fn file(&self, id: &str) -> PathBuf {
-        self.tickets.join(format!("{id}.md"))
+        self.tickets.join(format!("{id}.kk"))
     }
 
     fn read(&self, id: &str) -> String {
@@ -222,6 +222,78 @@ fn unknown_command_fails_with_help() {
     assert!(!run.ok);
     assert!(run.stderr.contains("Unknown command: frobnicate"));
     assert!(run.stderr.contains("Usage: kk"));
+}
+
+// --- File extensions ---
+
+#[test]
+fn new_tickets_use_kk_extension() {
+    let env = Env::new();
+    let id = env.create(&["Fresh"]);
+    let names: Vec<_> = fs::read_dir(&env.tickets)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .collect();
+    assert_eq!(names, [format!("{id}.kk")]);
+}
+
+#[test]
+fn legacy_md_tickets_are_read_and_updated_in_place() {
+    let env = Env::new();
+    env.ticket("tst-0002", "New style", "");
+    let md = env.tickets.join("tst-0001.md");
+    fs::rename(env.file("tst-0002"), &md).unwrap();
+    fs::write(
+        &md,
+        fs::read_to_string(&md)
+            .unwrap()
+            .replace("tst-0002", "tst-0001"),
+    )
+    .unwrap();
+    env.ticket("tst-0002", "New style", "");
+    fs::write(env.tickets.join("notes.txt"), "---\nid: tst-9999\n---\n").unwrap();
+
+    assert_eq!(
+        env.ok(&["ls"]),
+        "tst-0001 [open] - New style\ntst-0002 [open] - New style\n"
+    );
+    assert!(env.ok(&["show", "0001"]).starts_with("---\nid: tst-0001\n"));
+
+    // Updates stay in the .md file rather than creating a .kk copy.
+    env.ok(&["dep", "tst-0002", "tst-0001"]);
+    env.ok(&["link", "tst-0001", "tst-0002"]);
+    env.ok(&["close", "0001"]);
+    env.ok(&["add-note", "0001", "legacy note"]);
+    assert!(!env.file("tst-0001").exists());
+    let text = fs::read_to_string(&md).unwrap();
+    assert!(text.contains("status: closed\n") && text.contains("links: [tst-0002]\n"));
+    assert!(text.ends_with("legacy note\n"));
+    assert!(env.read("tst-0002").contains("deps: [tst-0001]\n"));
+    assert_eq!(env.ok(&["ready"]), "tst-0002 [P2][open] - New style\n");
+    assert_eq!(
+        env.ok(&["edit", "0001"]),
+        format!("Edit ticket file: {}\n", md.display())
+    );
+
+    // A child of a legacy ticket is a new .kk file.
+    let child = env.create(&["Child", "--parent", "0001"]);
+    assert!(env.read(&child).contains("parent: tst-0001\n"));
+}
+
+#[test]
+fn kk_file_wins_when_both_extensions_exist() {
+    let env = Env::new();
+    env.ticket("tst-0001", "Current", "");
+    let legacy = env.read("tst-0001").replace("# Current", "# Stale");
+    fs::write(env.tickets.join("tst-0001.md"), legacy).unwrap();
+
+    assert_eq!(env.ok(&["ls"]), "tst-0001 [open] - Current\n");
+    assert!(env.ok(&["show", "0001"]).contains("# Current"));
+    env.ok(&["close", "0001"]);
+    assert!(env.read("tst-0001").contains("status: closed\n"));
+    assert!(fs::read_to_string(env.tickets.join("tst-0001.md"))
+        .unwrap()
+        .contains("status: open\n"));
 }
 
 // --- Ticket format ---

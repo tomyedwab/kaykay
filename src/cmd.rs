@@ -93,8 +93,8 @@ pub fn create(dir: &Path, args: &[String]) -> Res {
 
     let (id, file) = loop {
         let id = format!("{prefix}-{}", random_suffix(4));
-        let file = dir.join(format!("{id}.md"));
-        if !file.exists() {
+        if store::exact_path(dir, &id).is_none() {
+            let file = store::new_ticket_path(dir, &id);
             break (id, file);
         }
     };
